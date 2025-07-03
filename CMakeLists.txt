@@ -156,6 +156,17 @@ target_link_libraries(${PROJECT_NAME}_node
     ${catkin_LIBRARIES}
 )
 
+## Declare a new ROS 1 executable for publishing PCDs
+add_executable(pcd_publisher_node
+    src/pcd_publisher_node.cpp
+)
+
+## Link against catkin and PCL
+target_link_libraries(pcd_publisher_node
+    ${catkin_LIBRARIES}
+    ${PCL_LIBRARIES}
+)
+
 #############
 ## Install ##
 #############
@@ -167,6 +178,7 @@ install(
         ${PROJECT_NAME}_groundsegmentation_lib
         ${PROJECT_NAME}_node
         ${PROJECT_NAME}_nodelet
+        pcd_publisher_node
     ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
     RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
