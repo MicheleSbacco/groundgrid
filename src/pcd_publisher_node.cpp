@@ -2,8 +2,9 @@
 #include <sensor_msgs/PointCloud2.h>
 
 #include <pcl/io/pcd_io.h>
-#include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
+
+#include <velodyne_pointcloud/point_types.h>  // ⬅️ Include correct point type
 
 #include <boost/filesystem.hpp>
 #include <vector>
@@ -35,7 +36,7 @@ int main(int argc, char** argv) {
 
     std::string folder;
     double rate;
-    nh.param<std::string>("folder", folder, "/home/michele/aida_code/bags/");
+    nh.param<std::string>("folder", folder, "/root/catkin_ws/src/bags/PCDs_ground_testing/");
     nh.param<double>("rate", rate, 1.0);
 
     ros::Publisher pub = nh.advertise<sensor_msgs::PointCloud2>("/pcd_points", 1);
@@ -45,8 +46,8 @@ int main(int argc, char** argv) {
     ros::Rate loop(rate);
 
     while (ros::ok() && index < pcd_files.size()) {
-        pcl::PointCloud<pcl::PointXYZI> cloud;
-        if (pcl::io::loadPCDFile<pcl::PointXYZI>(pcd_files[index], cloud) == -1) {
+        pcl::PointCloud<velodyne_pointcloud::PointXYZIR> cloud;  // ⬅️ Use correct point type
+        if (pcl::io::loadPCDFile<velodyne_pointcloud::PointXYZIR>(pcd_files[index], cloud) == -1) {
             ROS_WARN("Failed to load %s", pcd_files[index].c_str());
             ++index;
             continue;
@@ -54,7 +55,7 @@ int main(int argc, char** argv) {
 
         sensor_msgs::PointCloud2 output;
         pcl::toROSMsg(cloud, output);
-        output.header.frame_id = "map";
+        output.header.frame_id = "base_link";
         output.header.stamp = ros::Time::now();
 
         pub.publish(output);

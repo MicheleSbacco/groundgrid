@@ -38,6 +38,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 
+#include <ros/console.h>
+
 using namespace groundgrid;
 
 GroundGrid::GroundGrid() : mTf2_listener(mTfBuffer)

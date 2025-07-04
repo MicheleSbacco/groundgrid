@@ -26,6 +26,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <groundgrid/GroundSegmentation.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <ros/console.h>
+
 #include <chrono>
 #include <unordered_map>
 #include <algorithm>

@@ -57,6 +57,8 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <groundgrid/GroundGridFwd.h>
 #include <groundgrid/GroundSegmentation.h>
 
+#include <ros/console.h>
+
 namespace groundgrid {
 
 
