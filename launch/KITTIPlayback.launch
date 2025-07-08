@@ -4,15 +4,15 @@
     <arg name="use_nodelets"     default="$(optenv USE_NODELETS false)" doc="If nodelets should be used"/>
     <arg name="nodelet_manager"  default="$(optenv NODELET_MANAGER core_nodelet_manager)" doc="Nodelet manager to be used" />
     <arg name="paused"    default="false" doc="If the playback should be started paused" />
-    <arg name="point_cloud_topic" default="/pointcloud" doc="Point cloud topic to subscribe to" />
+    <arg name="point_cloud_topic" default="/kitti/cloud" doc="Point cloud topic to subscribe to" />
     <param name="/use_sim_time" value="true" />
 
-    <remap from="/kitti/cloud" to="/pointcloud"/>
+    <!-- <remap from="/kitti/cloud" to="/pointcloud"/> -->
 
     <!-- static transforms -->
-    <node pkg="tf2_ros" type="static_transform_publisher" name="kitti_base_to_base" args="1.95 0 -1.73 0 0 0  kitti_base_link base_link" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="kitti_base_to_base" args="0 0 0 0 0 0 1 kitti_base_link base_link" />
    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="kitti_base_to_base" args="2.48 0 -1.733 0 0 0  kitti_base_link base_link" /> -->
-    <node pkg="tf2_ros" type="static_transform_publisher" name="kitti_map_to_map" args="-2.48 0 1.733 0 0 0 1 kitti_map map" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="kitti_map_to_map" args="0 0 0 0 0 0 1 kitti_map map" />
     <node pkg="tf2_ros" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 1 map odom" />
     <node pkg="tf2_ros" type="static_transform_publisher" name="kitti_base_to_velodyne" args="0 0 0 0 0 0 kitti_base_link velodyne" />
     

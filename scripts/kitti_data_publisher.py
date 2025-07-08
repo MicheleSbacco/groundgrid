@@ -118,9 +118,14 @@ def sendCloud(pubCloud, currentTime):
     global cloudnum, dir
     cloudnumstring = f'{cloudnum:06}.bin'
     scan = np.fromfile(dir + "velodyne/" + cloudnumstring, dtype=np.float32)
-    scan = scan.reshape((-1, 4))
-    labels = readLabels(dir, cloudnum)
-    tst2 = np.hstack((scan, labels[:, None].astype(dtype=np.uint16)))
+    
+    # Small modification for the ring
+    scan = scan.reshape((-1, 5))
+    # labels = readLabels(dir, cloudnum)
+    # tst2 = np.hstack((scan, labels[:, None].astype(dtype=np.uint16)))
+
+    # Small modification for the ring
+    tst2 = np.hstack((scan[:, :4], scan[:, 4].reshape(-1, 1).astype(dtype=np.uint16)))
  
     # cut cloud to labeled parts
     res = []
@@ -153,30 +158,32 @@ def sendCloud(pubCloud, currentTime):
     return
 
 
-def readLabels(dir, cloudnum):
-    cloudnumstring = f'{cloudnum:06}.label'
-    labels = np.fromfile(dir + "labels/" + cloudnumstring, dtype=np.uint32)
-    labels = labels.reshape((-1))
-    labels = labels & 0xFFFF  # semantic label in lower half
-    return labels
+# Small modification for the ring
+# def readLabels(dir, cloudnum):
+#     cloudnumstring = f'{cloudnum:06}.label'
+#     labels = np.fromfile(dir + "labels/" + cloudnumstring, dtype=np.uint32)
+#     labels = labels.reshape((-1))
+#     labels = labels & 0xFFFF  # semantic label in lower half
+#     return labels
 
 
 def processPoses():
     global dir, poses
     poses = []
     pose_file = os.path.join(dir, 'poses.txt')
-    calibstring = "4.276802385584e-04 -9.999672484946e-01 -8.084491683471e-03 -1.198459927713e-02 -7.210626507497e-03 8.081198471645e-03 -9.999413164504e-01 -5.403984729748e-02 9.999738645903e-01 4.859485810390e-04 -7.206933692422e-03 -2.921968648686e-01"
-    calib = np.fromstring(calibstring, dtype=float, sep=' ')
-    calib = calib.reshape(3, 4)
-    calib = np.vstack((calib, [0, 0, 0, 1]))
-    calib_inv = np.linalg.inv(calib)
+    # calibstring = "4.276802385584e-04 -9.999672484946e-01 -8.084491683471e-03 -1.198459927713e-02 -7.210626507497e-03 8.081198471645e-03 -9.999413164504e-01 -5.403984729748e-02 9.999738645903e-01 4.859485810390e-04 -7.206933692422e-03 -2.921968648686e-01"
+    # calib = np.fromstring(calibstring, dtype=float, sep=' ')
+    # calib = calib.reshape(3, 4)
+    # calib = np.vstack((calib, [0, 0, 0, 1]))
+    # calib_inv = np.linalg.inv(calib)
     with open(pose_file, 'r') as f:
         lines = f.readlines()
         for line in lines:
             pose = np.fromstring(line, dtype=float, sep=' ')
             pose = pose.reshape(3, 4)
             pose = np.vstack((pose, [0, 0, 0, 1]))
-            poses.append(np.matmul(calib_inv, np.matmul(pose, calib)))
+            # poses.append(np.matmul(calib_inv, np.matmul(pose, calib)))
+            poses.append(pose)
     return
 
 
