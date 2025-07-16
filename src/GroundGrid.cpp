@@ -49,6 +49,23 @@ GroundGrid::~GroundGrid() {}
 
 void GroundGrid::setConfig(groundgrid::GroundGridConfig & config) { config_ = config; }
 
+
+
+/*
+
+What does this function do?
+
+    - Creates a Gridmap with specific mDimension and mResolution
+        - Variables are assigned in the "GroundGrid.h" file
+
+    - Assigns the layers to the Gridmap
+        - points 
+        - ground 
+        - groundpatch 
+        - minGroundHeight
+        - maxGroundHeight
+
+*/
 void GroundGrid::initGroundGrid(const nav_msgs::OdometryConstPtr &inOdom)
 {
     auto start = std::chrono::steady_clock::now();
@@ -82,6 +99,22 @@ void GroundGrid::initGroundGrid(const nav_msgs::OdometryConstPtr &inOdom)
 }
 
 
+
+
+/*
+
+What does this function do?
+
+    - Updates the position of the Gridmap
+        - Gridmap is centered in the robot
+        - if the robot moves, the Gridmap has to be updated
+
+    - Updates the "damage" area
+        - When robot moves, new cells become visible
+        - The new cells need to be "initialized"
+        - Of the new cells, only the fields "points" and "groundpatch" are initialized
+
+*/
 std::shared_ptr<grid_map::GridMap> GroundGrid::update(const nav_msgs::OdometryConstPtr &inOdom)
 {
     if(!mMap_ptr){

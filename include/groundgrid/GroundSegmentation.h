@@ -49,7 +49,9 @@ class GroundSegmentation {
   public:
     typedef velodyne_pointcloud::PointXYZIR PCLPoint;
 
-    GroundSegmentation() {};
+    GroundSegmentation() {
+      file_csv.open("/root/catkin_ws/src/bags/output_timeseries.csv", std::ios::app);
+    };
     void init(ros::NodeHandle& nodeHandle, const size_t dimension, const float& resolution);
     pcl::PointCloud<PCLPoint>::Ptr filter_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud, const PCLPoint& cloudOrigin, const geometry_msgs::TransformStamped& mapToBase, grid_map::GridMap &map);
     void insert_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud, const size_t start, const size_t end, const PCLPoint& cloudOrigin, std::vector<std::pair<size_t, grid_map::Index> >& point_index, std::vector<std::pair<size_t, grid_map::Index> >& ignored, std::vector<size_t>& outliers, grid_map::GridMap &map);
@@ -66,7 +68,90 @@ protected:
     grid_map::Matrix expectedPoints;
 
     // velodyne 128: Average distance in rad on the unit circle of the appr. 220k points per round/128 Lasers
-    const float verticalPointAngDist = 0.00174532925*2; // 0.2 degrees HDL-64e //0.00174532925; // 0.1 degrees //(2*M_PI)/(220000.0/128.0); // ca. 0.00365567:
-    const float minDistSquared = 12.0f;
+
+    // Vertical angle spacing between beams
+    //    - For the Ouster O1 with 128 rings:
+    //          - FOV = 45°   -->   45/127
+    //          - This gives 0.3543 degrees ...
+    //          - ... which is 0.00614 radians
+    const float verticalPointAngDist = 0.00614;
+
+    // Minimum distance (SQUARED) for the points to be considered
+    //    - I'd set it to 2m
+    //    - When squared, becomes 4.0
+    const float param_minDistSquared = 4.0f;
+
+    // // Parameters to perform the padding around the car. For now not used
+    // float parameter_ZeroPaddingLeft = 2.5;
+    // float parameter_ZeroPaddingRight = 2.0;
+    // float parameter_ZeroPaddingFront = 2.5;
+    // float parameter_ZeroPaddingBehind = 4.0;
+
+
+
+
+
+
+    /************************************ PARAMETERS FROM CONFIG ************************************/
+
+    // Original: "point_count_cell_variance_threshold" = 10
+    // If number of points per cell is lower, the variance is computed as an average of the neighbouring patch
+    const int param_PointPerCellThresholdForVariance = 5;                                           // Controllato, giusto metterlo a 5 per avere
+                                                                                                    // delle celle sia di front che dietro
+
+    // Original: "max_ring" = 1024
+    // If point is out of the interval, it is not considered for the ground segmentation
+    const int param_MinRing = 70;
+    const int param_MaxRing = 128;
+
+    // Original: "distance_factor" = 0.0001
+    // Original: "minimum_distance_factor" = 0.0005
+    // Original: "minimum_distance_factor*10" = 0.005
+    // Parameters for the computation of the variance (normal, minimum, maximum)
+    const double param_OffsetCoefficientForVariance = 0.0002;                                     // Giusto compromesso sembra 0.0075 moltiplicato
+                                                                                                  // per la sq_dist
+    const double param_MinimumVarianceThr = 0.000001;
+    const double param_MaximumVarianceThr = 0.00065;
+    const double param_PowerDistForVariance = -1.65;
+
+    // Original: "miminum_point_height_threshold" = 0.3
+    // Original: "miminum_point_height_obstacle_threshold" = 0.1
+    // Boh non so serve per cose strane, li lascio come stanno dai che è meglio
+    const double param_PointHeightThrForGround = 0.3;
+    const double param_PointHeightThrForObstacle = 0.1;
+
+    // Original: "outlier_tolerance" = 0.1
+    // Needed to estimate outliers (when below the ground level)
+    const double param_OutlierTolerance = 1.0;
+
+    // Original: hard-coded = 0.5
+    // Original: was "outlier_tolerance" but I divided them = 0.1
+    // Needed to exit if the estimation is going too much upwards with a high previous confidence
+    const double param_OldConfidenceThreshold = 0.95;
+    const double param_EstimationUpwardTolerance = 0.5;
+
+    // Original: "ground_patch_detection_minimum_point_count_threshold" = 0.25
+    // In percentage, the number of points needed in a patch in order to accept it as "interesting"
+    const double param_PatchPercentageThrForFiltering = 0.4;                                          // Dopo aver cambiato il verticalCoso, rimane
+                                                                                                      // perfetto al 50% (40% per margine)
+    // Original: "patch_size_change_distance" = 20
+    // The distance at which the patch size becomes 5x5 instead of 3x3
+    const double param_DistanceChangePatchSize = 25;
+
+    // Original: "occupied_cells_decrease_factor" = 0.8 (not really but I changed the implementation)
+    // Original: "occupied_cells_point_count_factor" = 20
+    // The decrease factor for the confidence, when a cell is interpolated.
+    // The decrease factor for the number of points per block, in order to compute the confidence
+    const double param_ConfidenceDecreaseFactorInterpolation = 1.0;
+    const double param_ConfidenceDecreaseFactorPointNumber = 40;
+
+
+
+    const float param_OldMemory = 3.0;
+
+
+
+    mutable std::ofstream file_csv;
+
 };
 }

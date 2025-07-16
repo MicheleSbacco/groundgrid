@@ -67,8 +67,10 @@ class GroundGrid {
     void initGroundGrid(const nav_msgs::OdometryConstPtr &inOdom);
     std::shared_ptr<grid_map::GridMap> update(const nav_msgs::OdometryConstPtr& inOdom);
 
-    const float mResolution = .33f;
-    const float mDimension = 120.0f;
+    const float mResolution = .33f;          // Probable dimension of each voxel in meters
+
+    const float mDimension = 60.0f;         // Probable dimension of the grid in METERS (or 
+                                            // this is what GPT says)
 
    private:
     /// dynamic config attribute

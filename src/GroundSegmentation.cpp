@@ -49,6 +49,59 @@ void GroundSegmentation::init(ros::NodeHandle& nodeHandle, const size_t dimensio
     Eigen::initParallel();
 }
 
+
+
+/*
+
+    This is the main function. Through this function, all the others are called.
+
+        - New layers are initialized on the Gridmap
+            - Before: 
+                - points
+                - ground 
+                - groundpatch 
+                - minGroundHeight
+                - maxGroundHeight
+            - Added now:
+                - groundCandidates
+                - planeDist
+                - m2
+                - meanVariance
+                - pointsRaw
+                - variance
+
+        - Calls "self->detect_ground_patches()"
+            - Which in turn calls "self->detect_ground_patch < S > "
+                - S = the parameter defining the width of the grid for the estimation
+
+            - Step 1: ignore not-populated areas
+                - done for the whole SxS patch, NOT for the single grid
+                - uses the parameter "ground_patch_detection_minimum_point_count_threshold"
+
+            - Step 2: compute "variance" and "estimated ground level"
+                - variance is either
+                    - of the single cell, if it has enough points (param_PointPerCellThresholdForVariance)
+                    - an average of the whole patch, otherwise
+                    - PAY ATTENTION!! IT IS NOT SCALED WRT TO DISTANCE OR EXPECTED
+                - estimated ground level is
+                    - the weighted average of the lowest point of the cells in the patch
+                    - weighted w.r.t. the number of points in the cell VS total pts in the patch
+                - variance threshold is:
+                    - at least (param_MinimumVarianceThr)^2
+                    - maximum (param_MaximumVarianceThr)^2
+                    - normally (param_VarianceDistanceMultiplier)^2 * squared_distance
+
+            - Step 3: if old confidence was high, and the estimation rises, do not update
+
+            - Step 4: update stuff
+                - if   ( var<var_thr )   AND   (the cell is well-observed, using "ground_patch_detection_minimum_point_count_threshold")
+                    - update confidence (using "occupied_cells_point_count_factor") -->  STRANGE FORMULA, CHECK IT
+                    - update ground height
+                - elif   (the ground estimate was going down)
+                    - update anyways
+
+*/
+
 pcl::PointCloud<GroundSegmentation::PCLPoint>::Ptr GroundSegmentation::filter_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud, const PCLPoint& cloudOrigin, const geometry_msgs::TransformStamped& mapToBase, grid_map::GridMap &map)
 {
     auto start = std::chrono::steady_clock::now();
@@ -153,9 +206,9 @@ pcl::PointCloud<GroundSegmentation::PCLPoint>::Ptr GroundSegmentation::filter_cl
 
 
     // Debugging statistics
-    const double& min_dist_fac = mConfig.minimum_distance_factor*5;
-    const double& min_point_height_thres = mConfig.miminum_point_height_threshold;
-    const double& min_point_height_obs_thres = mConfig.minimum_point_height_obstacle_threshold;
+    const double& min_dist_fac = param_MinimumVarianceThr*5;
+    const double& min_point_height_thres = param_PointHeightThrForGround;
+    const double& min_point_height_obs_thres = param_PointHeightThrForObstacle;
 
     for(const std::pair<size_t, grid_map::Index>& entry : point_index)
     {
@@ -236,7 +289,7 @@ void GroundSegmentation::insert_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud
         gpr(gi(0), gi(1)) += 1.0f;
 
 
-        if(point.ring > mConfig.max_ring || sqdist < minDistSquared){
+        if(param_MinRing > point.ring > param_MaxRing || sqdist < param_minDistSquared){
             ignored.push_back(std::make_pair(i, gi));
             continue;
         }
@@ -268,7 +321,7 @@ void GroundSegmentation::insert_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud
 
                 // check if known ground occludes the line of sight
                 const auto& block = ggp.block<3,3>(std::max(intersection(0)-1, 2), std::max(intersection(1)-1,2));
-                if(block.sum() > mConfig.min_outlier_detection_ground_confidence && ggp(intersection(0),intersection(1)) > 0.01f && ggl(intersection(0),intersection(1)) >= step*vec.z+cloudOrigin.z+mConfig.outlier_tolerance){
+                if(block.sum() > mConfig.min_outlier_detection_ground_confidence && ggp(intersection(0),intersection(1)) > 0.01f && ggl(intersection(0),intersection(1)) >= step*vec.z+cloudOrigin.z+param_OutlierTolerance){
                     outliers.push_back(i);
                     toSkip=true;
                     break;
@@ -333,7 +386,7 @@ void GroundSegmentation::detect_ground_patches(grid_map::GridMap &map, unsigned 
         for(int j=rows_start; j<rows_end; ++j){
             const float sqdist = (std::pow(i-(size(0)/2.0),2.0) + std::pow(j-(size(1)/2.0), 2.0)) * std::pow(resolution,2.0);
 
-            if(sqdist <= std::pow(mConfig.patch_size_change_distance, 2.0))
+            if(sqdist <= std::pow(param_DistanceChangePatchSize, 2.0))
                 detect_ground_patch<3>(map, i, j);
             else
                 detect_ground_patch<5>(map, i, j);
@@ -363,30 +416,34 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
     float& oldGroundheight = ggl(i,j);
 
     // early skipping of (almost) empty areas
-    if(pointsblockSum < std::max(std::floor(mConfig.ground_patch_detection_minimum_point_count_threshold * patchSize * expectedPointCountperLaserperCell), 3.0))
+    if (pointsblockSum < std::floor(param_PatchPercentageThrForFiltering * patchSize * expectedPointCountperLaserperCell))        
         return;
 
     // calculation of variance threshold
     // limit the value to the defined minimum and 10 times the defined minimum
-    const float varThresholdsq = std::min(std::max(sqdist * std::pow(mConfig.distance_factor,2.0), std::pow(mConfig.minimum_distance_factor,2.0)), std::pow(mConfig.minimum_distance_factor*10, 2.0));
+    const float varThresholdsq = std::min(
+                                    std::pow(sqdist, param_PowerDistForVariance) + param_OffsetCoefficientForVariance, 
+                                    param_MaximumVarianceThr
+                                );
     const auto& varblock = ggv.block<S,S>(i-center_idx,j-center_idx);
     const auto& minblock = gmi.block<S,S>(i-center_idx, j-center_idx);
-    const float& variance = varblock(center_idx,center_idx);
+    // const float& variance = varblock(center_idx,center_idx);
     const float& localmin = minblock.minCoeff();
-    const float maxVar = pointsBlock(center_idx,center_idx) >= mConfig.point_count_cell_variance_threshold ? variance : pointsBlock.array().cwiseProduct(varblock.array()).sum()/pointsblockSum;
+    const float maxVar = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
+                            varblock(center_idx,center_idx) : pointsBlock.array().cwiseProduct(varblock.array()).sum()/pointsblockSum;
     const float groundlevel = pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
-    const float groundDiff = std::max((groundlevel - oldGroundheight) * (2.0f*oldConfidence), 1.0f);
+    // const float groundDiff = std::max((groundlevel - oldGroundheight) * (2.0f*oldConfidence), 1.0f);
 
-    // Do not update known high confidence estimations upward
-    if(oldConfidence > 0.5 && groundlevel >= oldGroundheight + mConfig.outlier_tolerance)
-        return;
+    // // Do not update known high confidence estimations upward
+    // if(oldConfidence > param_OldConfidenceThreshold && groundlevel >= oldGroundheight + param_EstimationUpwardTolerance)
+    //     return;
 
-    if(varThresholdsq > std::pow(maxVar, 2.0) && maxVar > 0 && pointsblockSum > (groundDiff * expectedPointCountperLaserperCell * patchSize) * mConfig.ground_patch_detection_minimum_point_count_threshold){
-            const float& newConfidence = std::min(pointsblockSum/mConfig.occupied_cells_point_count_factor, 1.0);
+    if(varThresholdsq > maxVar && maxVar > 0) {
+            float newConfidence = std::min(pointsblockSum/param_ConfidenceDecreaseFactorPointNumber, 1.0);
             // calculate ground height
-            oldGroundheight = (groundlevel*newConfidence + oldConfidence * oldGroundheight*2)/(newConfidence+oldConfidence*2);
+            oldGroundheight = (groundlevel*newConfidence + oldConfidence*oldGroundheight*param_OldMemory)/(newConfidence+oldConfidence*param_OldMemory);
             // update confidence
-            oldConfidence = std::min((pointsblockSum/(mConfig.occupied_cells_point_count_factor*2.0f) + oldConfidence)/2.0, 1.0);
+            oldConfidence = std::min((newConfidence + oldConfidence*param_OldMemory)/(1.0+param_OldMemory), 1.0);
     }
     else if(localmin < oldGroundheight){
         // update ground height
@@ -462,8 +519,8 @@ void GroundSegmentation::interpolate_cell(grid_map::GridMap &map, const size_t x
     height = (1.0f-occupied) * avg + occupied * height;
 
     // Only update confidence in cells above min distance
-    if((std::pow((float)x-center_idx, 2.0) + std::pow((float)y-center_idx, 2.0)) * std::pow(map.getResolution(), 2.0f) > minDistSquared)
-        occupied = std::max(occupied-occupied/mConfig.occupied_cells_decrease_factor, 0.001);
+    if((std::pow((float)x-center_idx, 2.0) + std::pow((float)y-center_idx, 2.0)) * std::pow(map.getResolution(), 2.0f) > param_minDistSquared)
+        occupied = std::max(occupied*param_ConfidenceDecreaseFactorInterpolation, 0.001);
 }
 
 

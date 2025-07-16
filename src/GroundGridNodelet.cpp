@@ -88,12 +88,18 @@ class GroundGridNodelet : public nodelet::Nodelet {
         filtered_cloud_pub_ = nh.advertise<sensor_msgs::PointCloud2>("groundgrid/segmented_cloud", 1);
 
 
+
+
+        // GroundGrid initialization: used to handle the 2D BEV map
         groundgrid_ = std::make_shared<GroundGrid>();
 
         config_server_ = boost::make_shared<dynamic_reconfigure::Server<groundgrid::GroundGridConfig> >(pnh);
         dynamic_reconfigure::Server<groundgrid::GroundGridConfig>::CallbackType f;
         f = boost::bind(&GroundGridNodelet::callbackReconfigure, this, _1, _2);
 
+
+
+        // GroundSegmentation initialization: used to filter the pointcloud
         ground_segmentation_.init(nh, groundgrid_->mDimension, groundgrid_->mResolution);
 
         config_server_->setCallback(f);
@@ -106,6 +112,31 @@ class GroundGridNodelet : public nodelet::Nodelet {
    }
 
    protected:
+
+
+    /* 
+
+        This is the callback of GroundGrid. Details in the corresponding .cpp file.
+
+        The following are the layers of the Gridmap:
+
+            - pointsRaw	            Raw number of points in the cell (before filtering)
+            - points	            Number of "usable" points for segmentation
+
+            - groundCandidates	    Running average of z-values for ground candidate points
+            - meanVariance	        Running average of height difference (z - sensor_z)
+
+            - m2	                Accumulator used for computing variance
+            - variance	            Actual computed variance of height for the cell
+
+            - planeDist	            Average height of points relative to sensor z
+            - ground	            Current ground height estimation for the cell
+            - groundpatch	        Confidence (0.0 – 1.0) that the cell contains ground
+
+            - minGroundHeight	    Minimum z value observed in this cell
+            - maxGroundHeight	    Maximum z value observed in this cell
+
+    */
     virtual void odom_callback(const nav_msgs::OdometryConstPtr& inOdom){
         auto start = std::chrono::steady_clock::now();
         map_ptr_ = groundgrid_->update(inOdom);
@@ -113,6 +144,21 @@ class GroundGridNodelet : public nodelet::Nodelet {
         ROS_DEBUG_STREAM("grid map update took " << std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count() << "ms");
     }
 
+
+
+    /* 
+
+    This is the callback of GroundSegmentation. 
+
+        - Takes the most recent pointcloud, and transforms it to the "map" frame
+
+        - Runs the GroundSegmentation->filter_cloud(...)
+            - Takes the cloud and the Gridmap
+            - Outputs an already segmented cloud (ground-non_ground)
+
+        - Publishes the stuff
+
+    */
     virtual void points_callback(const sensor_msgs::PointCloud2ConstPtr& cloud_msg){
         auto start = std::chrono::steady_clock::now();
         static size_t time_vals = 0;
