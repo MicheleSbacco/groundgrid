@@ -377,10 +377,12 @@ void GroundSegmentation::detect_ground_patches(grid_map::GridMap &map, unsigned 
     // calculate variance
     ggv = gm2.array().cwiseQuotient(gpl.array()+std::numeric_limits<float>::min());
 
-    int cols_start = 2 + section%2 * (gcl.cols()/2-2);
-    int rows_start = section>=2 ? gcl.rows()/2 : 2;
-    int cols_end = (gcl.cols())/2 + section%2 * (gcl.cols()/2-2);
-    int rows_end = section>=2 ? gcl.rows()-2 : (gcl.rows())/2;
+    int patch_radius = std::floor(std::max(param_PatchSizeSmall, param_PatchSizeBig)/2);
+
+    int cols_start = patch_radius + section % 2 * (gcl.cols() / 2 - patch_radius);
+    int rows_start = section >= 2 ? gcl.rows() / 2 : patch_radius;
+    int cols_end   = gcl.cols() / 2 + section % 2 * (gcl.cols() / 2 - patch_radius);
+    int rows_end   = section >= 2 ? gcl.rows() - patch_radius : gcl.rows() / 2;
 
     for(int i=cols_start; i<cols_end; ++i){
         for(int j=rows_start; j<rows_end; ++j){
@@ -430,8 +432,10 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
     // const float& variance = varblock(center_idx,center_idx);
     const float& localmin = minblock.minCoeff();
     const float maxVar = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
-                            varblock(center_idx,center_idx) : pointsBlock.array().cwiseProduct(varblock.array()).sum()/pointsblockSum;
-    const float groundlevel = pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
+                            varblock(center_idx,center_idx) : pointsBlock.cwiseProduct(varblock).sum()/pointsblockSum;
+    // const float groundlevel = pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
+    const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
+                            minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
     // const float groundDiff = std::max((groundlevel - oldGroundheight) * (2.0f*oldConfidence), 1.0f);
 
     // // Do not update known high confidence estimations upward
@@ -445,12 +449,12 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
             // update confidence
             oldConfidence = std::min((newConfidence + oldConfidence*param_OldMemory)/(1.0+param_OldMemory), 1.0);
     }
-    else if(localmin < oldGroundheight){
-        // update ground height
-        oldGroundheight = localmin;
-        // update confidence
-        oldConfidence = std::min(oldConfidence + 0.1f, 0.5f);
-    }
+    // else if(localmin < oldGroundheight){
+    //     // update ground height
+    //     oldGroundheight = localmin;
+    //     // update confidence
+    //     oldConfidence = std::min(oldConfidence + 0.1f, 0.5f);
+    // }
 }
 
 

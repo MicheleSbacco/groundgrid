@@ -108,8 +108,7 @@ protected:
     // Original: "minimum_distance_factor" = 0.0005
     // Original: "minimum_distance_factor*10" = 0.005
     // Parameters for the computation of the variance (normal, minimum, maximum)
-    const double param_OffsetCoefficientForVariance = 0.0002;                                     // Giusto compromesso sembra 0.0075 moltiplicato
-                                                                                                  // per la sq_dist
+    const double param_OffsetCoefficientForVariance = 0.0003;
     const double param_MinimumVarianceThr = 0.000001;
     const double param_MaximumVarianceThr = 0.00065;
     const double param_PowerDistForVariance = -1.65;
@@ -122,7 +121,7 @@ protected:
 
     // Original: "outlier_tolerance" = 0.1
     // Needed to estimate outliers (when below the ground level)
-    const double param_OutlierTolerance = 1.0;
+    const double param_OutlierTolerance = 0.1;
 
     // Original: hard-coded = 0.5
     // Original: was "outlier_tolerance" but I divided them = 0.1
@@ -134,6 +133,7 @@ protected:
     // In percentage, the number of points needed in a patch in order to accept it as "interesting"
     const double param_PatchPercentageThrForFiltering = 0.4;                                          // Dopo aver cambiato il verticalCoso, rimane
                                                                                                       // perfetto al 50% (40% per margine)
+
     // Original: "patch_size_change_distance" = 20
     // The distance at which the patch size becomes 5x5 instead of 3x3
     const double param_DistanceChangePatchSize = 25;
@@ -147,7 +147,10 @@ protected:
 
 
 
-    const float param_OldMemory = 3.0;
+    const float param_OldMemory = 0.0;
+
+    const int param_PatchSizeSmall = 4;
+    const int param_PatchSizeBig = 7;
 
 
 
