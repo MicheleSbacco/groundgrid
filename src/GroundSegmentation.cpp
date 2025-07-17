@@ -38,12 +38,41 @@ using namespace groundgrid;
 
 void GroundSegmentation::init(ros::NodeHandle& nodeHandle, const size_t dimension, const float& resolution){
     const size_t cellCount = std::round(dimension/resolution);
-
     expectedPoints.resize(cellCount, cellCount);
+
     for(size_t i=0; i<cellCount; ++i){
         for(size_t j=0; j<cellCount; ++j){
-            const float& dist = std::hypot(i-cellCount/2.0,j-cellCount/2.0);
-            expectedPoints(i,j) = std::atan(1/dist)/verticalPointAngDist;
+
+            // Compute the distance (in meters)
+            const double dist = resolution * 
+                std::hypot(
+                    static_cast<double>(i) - static_cast<double>(cellCount) / 2.0,
+                    static_cast<double>(j) - static_cast<double>(cellCount) / 2.0
+            );
+
+            // Skip, if the distance is smaller than the resolution
+            if (dist < resolution*2) {
+                expectedPoints(i, j) = 100.0; // avoid division by zero at the center
+                continue;
+            }
+
+            // Compute the "short" distance
+            const double dist_short = dist-resolution;
+            // Compute the "big" angle (to the short distance)
+            const double big_angle = std::atan2(param_CarLidarHeight, dist_short);
+            // Compute the "small" angle (to the longer distance)
+            const double small_angle = std::atan2(param_CarLidarHeight, dist);
+
+            // Compute the vertical angle relative to the cell
+            const double angle_vertical = big_angle-small_angle;
+            // Compute the horizontal angle relative to the cell
+            const double angle_horizontal = 2 * std::atan2(resolution/2,dist);
+
+            // Compute the expected vertical and horizontal points
+            const double horizontal_points = angle_horizontal * horizontalPointAngDist;
+            const double vertical_points = angle_vertical * verticalPointAngDist;
+
+            expectedPoints(i, j) = horizontal_points*vertical_points;
         }
     }
     Eigen::initParallel();
@@ -117,7 +146,8 @@ pcl::PointCloud<GroundSegmentation::PCLPoint>::Ptr GroundSegmentation::filter_cl
     map.add("planeDist", 0.0);
     map.add("m2", 0.0);
     map.add("meanVariance", 0.0);
-
+    // Layer to have a flag if ground or not
+    map.add("isGround", 0.0);
     // raw point count layer for the evaluation
     map.add("pointsRaw", 0.0);
 
@@ -289,7 +319,7 @@ void GroundSegmentation::insert_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud
         gpr(gi(0), gi(1)) += 1.0f;
 
 
-        if(param_MinRing > point.ring > param_MaxRing || sqdist < param_minDistSquared){
+        if((param_MinRing <= point.ring && point.ring <= param_MaxRing) || sqdist < param_minDistSquared){
             ignored.push_back(std::make_pair(i, gi));
             continue;
         }
@@ -402,6 +432,8 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
     static grid_map::Matrix& ggl = map["ground"];
     static grid_map::Matrix& ggp = map["groundpatch"];
     static grid_map::Matrix& ggv = map["variance"];
+    static grid_map::Matrix& map_isGround = map["isGround"];
+    float& value_isGround = map_isGround(i, j);
     static const grid_map::Matrix& gmi = map["minGroundHeight"];
     static const grid_map::Matrix& gpl = map["points"];
     static const auto& size = map.getSize();
@@ -410,15 +442,15 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
 
 
     const auto& pointsBlock = gpl.block<S,S>(i-center_idx,j-center_idx);
+    const auto& pointsRawBlock = gplr.block<S,S>(i-center_idx,j-center_idx);
     const float sqdist = (std::pow(i-(size(0)/2.0),2.0) + std::pow(j-(size(1)/2.0), 2.0)) * std::pow(resolution,2.0);
-    const int patchSize = S;
     const float& expectedPointCountperLaserperCell = expectedPoints(i,j);
     const float& pointsblockSum = pointsBlock.sum();
     float& oldConfidence = ggp(i,j);
     float& oldGroundheight = ggl(i,j);
 
     // early skipping of (almost) empty areas
-    if (pointsblockSum < std::floor(param_PatchPercentageThrForFiltering * patchSize * expectedPointCountperLaserperCell))        
+    if (pointsRawBlock.sum() < param_PatchPercentageThrForFiltering * expectedPoints.block<S,S>(i-center_idx,j-center_idx).sum())
         return;
 
     // calculation of variance threshold
@@ -433,9 +465,27 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
     const float& localmin = minblock.minCoeff();
     const float maxVar = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
                             varblock(center_idx,center_idx) : pointsBlock.cwiseProduct(varblock).sum()/pointsblockSum;
+
+
+
+
+    // // Ground computation method: directly num_points average
     // const float groundlevel = pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
-    const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
-                            minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
+
+    // // Ground computation method: either value of the block, or num_points average
+    // const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
+    //                         minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
+
+    // // Ground computation method: new based on confidence (very bad)
+    // const auto& confidenceblock = ggp.block<S,S>(i-center_idx, j-center_idx);
+    // const float groundlevel = confidenceblock.cwiseProduct(minblock).sum()/confidenceblock.sum();
+
+    // // Ground computation method: average but NOT weighted
+    // const float groundlevel = minblock.sum()/(S*S);
+
+
+
+
     // const float groundDiff = std::max((groundlevel - oldGroundheight) * (2.0f*oldConfidence), 1.0f);
 
     // // Do not update known high confidence estimations upward
@@ -448,6 +498,8 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
             oldGroundheight = (groundlevel*newConfidence + oldConfidence*oldGroundheight*param_OldMemory)/(newConfidence+oldConfidence*param_OldMemory);
             // update confidence
             oldConfidence = std::min((newConfidence + oldConfidence*param_OldMemory)/(1.0+param_OldMemory), 1.0);
+            // signal that the cell is ground
+            value_isGround = 1.0;
     }
     // else if(localmin < oldGroundheight){
     //     // update ground height
@@ -508,23 +560,31 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 void GroundSegmentation::interpolate_cell(grid_map::GridMap &map, const size_t x, const size_t y) const
 {
     static const auto& center_idx = map.getSize()(0)/2-1;
-    static const size_t blocksize = 3;
     // "groundpatch" layer contains confidence values
     static grid_map::Matrix& gvl = map["groundpatch"];
+    const auto& gvlblock = gvl.block<param_BlockSizeInterpolation,param_BlockSizeInterpolation>(x-param_BlockSizeInterpolation/2,y-param_BlockSizeInterpolation/2);
     // "ground" contains the ground height values
     static grid_map::Matrix& ggl = map["ground"];
-    const auto& gvlblock = gvl.block<blocksize,blocksize>(x-blocksize/2,y-blocksize/2);
+    // "isGround" says if it has been identified as ground or not
+    static grid_map::Matrix& map_isGround = map["isGround"];
+    float value_isGround = map_isGround(x,y);
 
     float& height = ggl(x,y);
-    float& occupied = gvl(x,y);
+    float& confidence = gvl(x,y);
     const float& gvlSum = gvlblock.sum() + std::numeric_limits<float>::min(); // avoid a possible div by 0
-    const float avg = (gvlblock.cwiseProduct(ggl.block<blocksize,blocksize>(x-blocksize/2, y-blocksize/2))).sum()/gvlSum;
+    const float avg = (gvlblock.cwiseProduct
+                        (ggl.block<param_BlockSizeInterpolation,param_BlockSizeInterpolation>
+                        (x-param_BlockSizeInterpolation/2, y-param_BlockSizeInterpolation/2))
+                      ).sum()/gvlSum;
 
-    height = (1.0f-occupied) * avg + occupied * height;
+    height = (1.0f-confidence) * avg + confidence * height;
 
     // Only update confidence in cells above min distance
-    if((std::pow((float)x-center_idx, 2.0) + std::pow((float)y-center_idx, 2.0)) * std::pow(map.getResolution(), 2.0f) > param_minDistSquared)
-        occupied = std::max(occupied*param_ConfidenceDecreaseFactorInterpolation, 0.001);
+    if ((std::pow((float)x-center_idx, 2.0) + std::pow((float)y-center_idx, 2.0)) * std::pow(map.getResolution(), 2.0f) > param_minDistSquared
+       &&
+       value_isGround < 0.5) {
+        confidence = std::max(confidence*param_ConfidenceDecreaseFactorInterpolation, 0.001);
+    }
 }
 
 

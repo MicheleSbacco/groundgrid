@@ -67,25 +67,25 @@ protected:
     groundgrid::GroundGridConfig mConfig;
     grid_map::Matrix expectedPoints;
 
-    // velodyne 128: Average distance in rad on the unit circle of the appr. 220k points per round/128 Lasers
-
     // Vertical angle spacing between beams
-    //    - For the Ouster O1 with 128 rings:
-    //          - FOV = 45°   -->   45/127
-    //          - This gives 0.3543 degrees ...
-    //          - ... which is 0.00614 radians
-    const float verticalPointAngDist = 0.00614;
+    //    (num_of_rings)/(FOV_in_radians)
+    const float verticalPointAngDist = 127/(45*(M_PI/180));
+    // Horizontal angle spacing between beams
+    //    (num_of_lasers)*(FOV_in_radians)
+    const float horizontalPointAngDist = 1023/(360*(M_PI/180));
+    // Height of the LiDAR with respect to the ground (in meters)
+    const float param_CarLidarHeight = 1.7;
 
     // Minimum distance (SQUARED) for the points to be considered
     //    - I'd set it to 2m
     //    - When squared, becomes 4.0
     const float param_minDistSquared = 4.0f;
 
-    // // Parameters to perform the padding around the car. For now not used
-    // float parameter_ZeroPaddingLeft = 2.5;
-    // float parameter_ZeroPaddingRight = 2.0;
-    // float parameter_ZeroPaddingFront = 2.5;
-    // float parameter_ZeroPaddingBehind = 4.0;
+    // Parameters to perform the padding around the car. For now not used
+    float parameter_ZeroPaddingLeft = 1.0;
+    float parameter_ZeroPaddingRight = 1.0;
+    float parameter_ZeroPaddingFront = 2.0;
+    float parameter_ZeroPaddingBehind = 2.5;
 
 
 
@@ -108,7 +108,7 @@ protected:
     // Original: "minimum_distance_factor" = 0.0005
     // Original: "minimum_distance_factor*10" = 0.005
     // Parameters for the computation of the variance (normal, minimum, maximum)
-    const double param_OffsetCoefficientForVariance = 0.0003;
+    const double param_OffsetCoefficientForVariance = 0.0002;
     const double param_MinimumVarianceThr = 0.000001;
     const double param_MaximumVarianceThr = 0.00065;
     const double param_PowerDistForVariance = -1.65;
@@ -136,21 +136,22 @@ protected:
 
     // Original: "patch_size_change_distance" = 20
     // The distance at which the patch size becomes 5x5 instead of 3x3
-    const double param_DistanceChangePatchSize = 25;
+    const double param_DistanceChangePatchSize = 20;
 
     // Original: "occupied_cells_decrease_factor" = 0.8 (not really but I changed the implementation)
     // Original: "occupied_cells_point_count_factor" = 20
     // The decrease factor for the confidence, when a cell is interpolated.
     // The decrease factor for the number of points per block, in order to compute the confidence
-    const double param_ConfidenceDecreaseFactorInterpolation = 1.0;
+    const double param_ConfidenceDecreaseFactorInterpolation = 0.95;
     const double param_ConfidenceDecreaseFactorPointNumber = 40;
 
 
 
     const float param_OldMemory = 0.0;
 
-    const int param_PatchSizeSmall = 4;
-    const int param_PatchSizeBig = 7;
+    const int param_PatchSizeSmall = 3;
+    const int param_PatchSizeBig = 5;
+    static const int param_BlockSizeInterpolation = 7;
 
 
 
