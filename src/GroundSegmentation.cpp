@@ -152,15 +152,6 @@ pcl::PointCloud<GroundSegmentation::PCLPoint>::Ptr GroundSegmentation::filter_cl
     map.add("pointsRaw", 0.0);
 
 
-
-    map.add("boolVisualize", 0.0);
-    map.add("distVisualize", 0.0);
-    map.add("MaxVar", 0.0);
-
-    // file_csv << "period" << "\n";
-
-
-
     map["groundCandidates"].setZero();
     map["points"].setZero();
     map["minGroundHeight"].setConstant(std::numeric_limits<float>::max());
@@ -328,7 +319,7 @@ void GroundSegmentation::insert_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud
         gpr(gi(0), gi(1)) += 1.0f;
 
 
-        if((param_MinRing <= point.ring && point.ring <= param_MaxRing) || sqdist < param_minDistSquared){
+        if((point.ring <= param_MinRing) || (point.ring >= param_MaxRing) || (sqdist < param_minDistSquared)){
             ignored.push_back(std::make_pair(i, gi));
             continue;
         }
@@ -450,21 +441,6 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
     const int center_idx = std::floor(S/2);
 
 
-
-
-    static grid_map::Matrix& g_average = map["groundCandidates"];
-
-
-
-
-    float& visual_bool = map["boolVisualize"](i, j);
-    static grid_map::Matrix& distance_map = map["distVisualize"];
-    static const grid_map::Matrix& gplr = map["pointsRaw"];
-
-
-
-
-
     const auto& pointsBlock = gpl.block<S,S>(i-center_idx,j-center_idx);
     const auto& pointsRawBlock = gplr.block<S,S>(i-center_idx,j-center_idx);
     const float sqdist = (std::pow(i-(size(0)/2.0),2.0) + std::pow(j-(size(1)/2.0), 2.0)) * std::pow(resolution,2.0);
@@ -490,17 +466,15 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
     const float maxVar = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
                             varblock(center_idx,center_idx) : pointsBlock.cwiseProduct(varblock).sum()/pointsblockSum;
 
-    visual_bool = (center_idx,center_idx) >= param_PointPerCellThresholdForVariance ? 1.0 : 0.0;
-
 
 
 
     // // Ground computation method: directly num_points average
     // const float groundlevel = pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
 
-    // Ground computation method: either value of the block, or num_points average
-    const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
-                            minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
+    // // Ground computation method: either value of the block, or num_points average
+    // const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
+    //                         minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
 
     // // Ground computation method: new based on confidence (very bad)
     // const auto& confidenceblock = ggp.block<S,S>(i-center_idx, j-center_idx);
@@ -527,12 +501,12 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
             // signal that the cell is ground
             value_isGround = 1.0;
     }
-    else if(localmin < oldGroundheight){
-        // update ground height
-        oldGroundheight = localmin;
-        // update confidence
-        oldConfidence = std::min(oldConfidence + 0.1f, 0.5f);
-    }
+    // else if(localmin < oldGroundheight){
+    //     // update ground height
+    //     oldGroundheight = localmin;
+    //     // update confidence
+    //     oldConfidence = std::min(oldConfidence + 0.1f, 0.5f);
+    // }
 }
 
 
@@ -556,20 +530,20 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 
 
-    static grid_map::Matrix& visual_map = map["boolVisualize"];
-    static grid_map::Matrix& distance_map = map["distVisualize"];
-    static grid_map::Matrix& variance_map = map["variance"];
-    static const grid_map::Matrix& gpl = map["points"];
-    static grid_map::Matrix& map_MaxVar = map["MaxVar"];
+    // static grid_map::Matrix& visual_map = map["boolVisualize"];
+    // static grid_map::Matrix& distance_map = map["distVisualize"];
+    // static grid_map::Matrix& variance_map = map["variance"];
+    // static const grid_map::Matrix& gpl = map["points"];
+    // static grid_map::Matrix& map_MaxVar = map["MaxVar"];
 
 
 
 
 
 
-    if (!file_csv.is_open()) {
-        return;
-    }
+    // if (!file_csv.is_open()) {
+    //     return;
+    // }
 
 
 
@@ -743,10 +717,10 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 void GroundSegmentation::interpolate_cell(grid_map::GridMap &map, const size_t x, const size_t y) const
 {
-    // // "isGround" says if it has been identified as ground or not
-    // static grid_map::Matrix& map_isGround = map["isGround"];
-    // if (map_isGround(x,y) > 0.5)
-    //     return;
+    // "isGround" says if it has been identified as ground or not
+    static grid_map::Matrix& map_isGround = map["isGround"];
+    if (map_isGround(x,y) > 0.5)
+        return;
 
     static const auto& center_idx = map.getSize()(0)/2-1;
     // "groundpatch" layer contains confidence values
