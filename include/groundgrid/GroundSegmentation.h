@@ -96,19 +96,19 @@ protected:
 
     // Original: "point_count_cell_variance_threshold" = 10
     // If number of points per cell is lower, the variance is computed as an average of the neighbouring patch
-    const int param_PointPerCellThresholdForVariance = 5;                                           // Controllato, giusto metterlo a 5 per avere
-                                                                                                    // delle celle sia di front che dietro
+    const int param_PointPerCellThresholdForVariance = 4;                                           // Checked, set it to 4/5 to have some
+                                                                                                    // cells both in front and behind
 
     // Original: "max_ring" = 1024
     // If point is out of the interval, it is not considered for the ground segmentation
-    const int param_MinRing = 72;
-    const int param_MaxRing = 128;
+    const int param_MinRing = 72;                                                                   // Checked, seems to be best from 70/72
+    const int param_MaxRing = 128;                                                                  // to 128 (of course the maximum)
 
     // Original: "distance_factor" = 0.0001
     // Original: "minimum_distance_factor" = 0.0005
     // Original: "minimum_distance_factor*10" = 0.005
     // Parameters for the computation of the variance (normal, minimum, maximum)
-    const double param_OffsetCoefficientForVariance = 0.0002;
+    const double param_OffsetCoefficientForVariance = 0.0002;                                       // These definitely need to be studied more
     const double param_MinimumVarianceThr = 0.000001;
     const double param_MaximumVarianceThr = 0.00065;
     const double param_PowerDistForVariance = -1.65;
@@ -126,34 +126,56 @@ protected:
     // Original: hard-coded = 0.5
     // Original: was "outlier_tolerance" but I divided them = 0.1
     // Needed to exit if the estimation is going too much upwards with a high previous confidence
-    const double param_OldConfidenceThreshold = 0.95;
-    const double param_EstimationUpwardTolerance = 0.5;
+    // const double param_OldConfidenceThreshold = 0.95;
+    // const double param_EstimationUpwardTolerance = 0.5;                                              // Checked: commented because line was
+                                                                                                        // removed from the main code
 
     // Original: "ground_patch_detection_minimum_point_count_threshold" = 0.25
     // In percentage, the number of points needed in a patch in order to accept it as "interesting"
-    const double param_PatchPercentageThrForFiltering = 0.6;                                          // Dopo aver cambiato il verticalCoso, rimane
-                                                                                                      // perfetto al 50% (40% per margine)
+    const double param_PatchPercentageThrForFiltering = 0.75;                                       // Two things:
+                                                                                                    //    - Better to use the patch than the single
+                                                                                                    //      cell (more even results)
+                                                                                                    //    - Better to use mapPoints rather than
+                                                                                                    //      mapPointsRaw (more coherent with the
+                                                                                                    //      computation of expectedPoints)
+                                                                                                    //    - Around 75% seems to be ok, at least with
+                                                                                                    //      this LiDAR
 
     // Original: "patch_size_change_distance" = 20
     // The distance at which the patch size becomes 5x5 instead of 3x3
-    const double param_DistanceChangePatchSize = 20;
+    const double param_DistanceChangePatchSize = 12.5;                                                    // After some considerations, reduced it
+                                                                                                          // a lot cause LiDAR points degrade very
+                                                                                                          // fast
 
     // Original: "occupied_cells_decrease_factor" = 0.8 (not really but I changed the implementation)
     // Original: "occupied_cells_point_count_factor" = 20
     // The decrease factor for the confidence, when a cell is interpolated.
     // The decrease factor for the number of points per block, in order to compute the confidence
-    const double param_ConfidenceDecreaseFactorInterpolation = 0.95;
-    const double param_ConfidenceDecreaseFactorPointNumber = 40;
+    const double param_ConfidenceDecreaseFactorInterpolation = 0.955;                                 // Changed it to a higher value of .955 so 
+                                                                                                      // that the confidence goes from 1 to 0.5
+                                                                                                      // in 5 meters. 
+                                                                                                      // With .8 the confidence would half in 
+                                                                                                      // just 1 meter and go to zero within just
+                                                                                                      // 6 meters.
+    const double param_ConfidenceDecreaseFactorPointNumber = 13.5;                                    // Ok 13.5 cause it gives a good confidence
+                                                                                                      // also to some cells far away
 
 
 
-    const float param_OldMemory = 0.0;
+    const float param_OldMemory = 0.0;              // Personal opinion: should never be used cause the height changes
+                                                    // dynamically when the car takes bumps or similar things
 
-    const int param_PatchSizeSmall = 3;
-    const int param_PatchSizeBig = 5;
-    static const int param_BlockSizeInterpolation = 3;
+    // Patch sizes for the "detect_patch_size"
+    static const int param_DetectPatchSizeSmall = 5;                // Increased it to make things more regular, even at
+                                                                    // the short ranges
+    static const int param_DetectPatchSizeBig = 7;                  // Same exact thing as above
 
+    // Patch size for the "interpolate_cell"
+    static const int param_InterpolationPatchSize = 7;              // Was 3, wanted to increase it a lot to make things more
+                                                                    // regular (hopefully not too slower)
 
+    // Confidence assigned to the cells that are NOT considered ground
+    const float param_ConfidenceForNotGround = 0.1;                       // Needs to be checked too :)
 
     mutable std::ofstream file_csv;
 

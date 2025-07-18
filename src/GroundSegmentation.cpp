@@ -407,7 +407,7 @@ void GroundSegmentation::detect_ground_patches(grid_map::GridMap &map, unsigned 
     // calculate variance
     ggv = gm2.array().cwiseQuotient(gpl.array()+std::numeric_limits<float>::min());
 
-    int patch_radius = std::floor(std::max(param_PatchSizeSmall, param_PatchSizeBig)/2);
+    int patch_radius = std::floor(std::max(param_DetectPatchSizeBig, param_DetectPatchSizeBig)/2);
 
     int cols_start = patch_radius + section % 2 * (gcl.cols() / 2 - patch_radius);
     int rows_start = section >= 2 ? gcl.rows() / 2 : patch_radius;
@@ -419,9 +419,9 @@ void GroundSegmentation::detect_ground_patches(grid_map::GridMap &map, unsigned 
             const float sqdist = (std::pow(i-(size(0)/2.0),2.0) + std::pow(j-(size(1)/2.0), 2.0)) * std::pow(resolution,2.0);
 
             if(sqdist <= std::pow(param_DistanceChangePatchSize, 2.0))
-                detect_ground_patch<3>(map, i, j);
+                detect_ground_patch<param_DetectPatchSizeSmall>(map, i, j);
             else
-                detect_ground_patch<5>(map, i, j);
+                detect_ground_patch<param_DetectPatchSizeBig>(map, i, j);
         }
     }
 }
@@ -442,15 +442,13 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
 
 
     const auto& pointsBlock = gpl.block<S,S>(i-center_idx,j-center_idx);
-    const auto& pointsRawBlock = gplr.block<S,S>(i-center_idx,j-center_idx);
     const float sqdist = (std::pow(i-(size(0)/2.0),2.0) + std::pow(j-(size(1)/2.0), 2.0)) * std::pow(resolution,2.0);
-    const float& expectedPointCountperLaserperCell = expectedPoints(i,j);
     const float& pointsblockSum = pointsBlock.sum();
     float& oldConfidence = ggp(i,j);
     float& oldGroundheight = ggl(i,j);
 
     // early skipping of (almost) empty areas
-    if (pointsRawBlock.sum() < param_PatchPercentageThrForFiltering * expectedPoints.block<S,S>(i-center_idx,j-center_idx).sum())
+    if (pointsblockSum < param_PatchPercentageThrForFiltering * expectedPoints.block(i-center_idx,j-center_idx,S,S).sum())
         return;
 
     // calculation of variance threshold
@@ -461,36 +459,13 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
                                 );
     const auto& varblock = ggv.block<S,S>(i-center_idx,j-center_idx);
     const auto& minblock = gmi.block<S,S>(i-center_idx, j-center_idx);
-    // const float& variance = varblock(center_idx,center_idx);
-    const float& localmin = minblock.minCoeff();
     const float maxVar = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
                             varblock(center_idx,center_idx) : pointsBlock.cwiseProduct(varblock).sum()/pointsblockSum;
 
 
-
-
-    // // Ground computation method: directly num_points average
-    // const float groundlevel = pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
-
-    // // Ground computation method: either value of the block, or num_points average
-    // const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
-    //                         minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
-
-    // // Ground computation method: new based on confidence (very bad)
-    // const auto& confidenceblock = ggp.block<S,S>(i-center_idx, j-center_idx);
-    // const float groundlevel = confidenceblock.cwiseProduct(minblock).sum()/confidenceblock.sum();
-
-    // // Ground computation method: average but NOT weighted
-    // const float groundlevel = minblock.sum()/(S*S);
-
-
-
-
-    // const float groundDiff = std::max((groundlevel - oldGroundheight) * (2.0f*oldConfidence), 1.0f);
-
-    // // Do not update known high confidence estimations upward
-    // if(oldConfidence > param_OldConfidenceThreshold && groundlevel >= oldGroundheight + param_EstimationUpwardTolerance)
-    //     return;
+    // Ground computation method: either value of the block, or num_points average
+    const float groundlevel = pointsBlock(center_idx,center_idx) >= param_PointPerCellThresholdForVariance ?
+                            minblock(center_idx,center_idx) : pointsBlock.cwiseProduct(minblock).sum()/pointsblockSum;
 
     if(varThresholdsq > maxVar && maxVar > 0) {
             float newConfidence = std::min(pointsblockSum/param_ConfidenceDecreaseFactorPointNumber, 1.0);
@@ -501,12 +476,12 @@ template <int S> void GroundSegmentation::detect_ground_patch(grid_map::GridMap&
             // signal that the cell is ground
             value_isGround = 1.0;
     }
-    // else if(localmin < oldGroundheight){
-    //     // update ground height
-    //     oldGroundheight = localmin;
-    //     // update confidence
-    //     oldConfidence = std::min(oldConfidence + 0.1f, 0.5f);
-    // }
+    else {
+        // update ground height
+        oldGroundheight = minblock.minCoeff();
+        // update confidence
+        oldConfidence = param_ConfidenceForNotGround;
+    }
 }
 
 
@@ -514,6 +489,7 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 {
     static grid_map::Matrix& ggl = map["ground"];
     static grid_map::Matrix& gvl = map["groundpatch"];
+    static grid_map::Matrix& map_isGround = map["isGround"];
     const auto& map_size = map.getSize();
     const auto& center_idx = map_size(0)/2-1;
 
@@ -550,51 +526,52 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 
 
-    // // Extract robot pose from transform
-    // tf2::Vector3 base_pos(toBase.transform.translation.x,
-    //                         toBase.transform.translation.y,
-    //                         toBase.transform.translation.z);
-    // tf2::Quaternion base_q;
-    // tf2::fromMsg(toBase.transform.rotation, base_q);
-    // double roll, pitch, yaw;
-    // tf2::Matrix3x3(base_q).getRPY(roll, pitch, yaw);
-    // float cos_yaw = std::cos(yaw);
-    // float sin_yaw = std::sin(yaw);
+    // Extract robot pose from transform
+    tf2::Vector3 base_pos(toBase.transform.translation.x,
+                            toBase.transform.translation.y,
+                            toBase.transform.translation.z);
+    tf2::Quaternion base_q;
+    tf2::fromMsg(toBase.transform.rotation, base_q);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(base_q).getRPY(roll, pitch, yaw);
+    float cos_yaw = std::cos(yaw);
+    float sin_yaw = std::sin(yaw);
 
-    // // Define the corners of the rectangular box (in vehicle frame)
-    // std::vector<tf2::Vector3> corners_vehicle = {
-    //     tf2::Vector3(parameter_ZeroPaddingFront,  parameter_ZeroPaddingLeft,  0),
-    //     tf2::Vector3(parameter_ZeroPaddingFront, -parameter_ZeroPaddingRight, 0),
-    //     tf2::Vector3(-parameter_ZeroPaddingBehind, -parameter_ZeroPaddingRight, 0),
-    //     tf2::Vector3(-parameter_ZeroPaddingBehind,  parameter_ZeroPaddingLeft,  0)
-    // };
+    // Define the corners of the rectangular box (in vehicle frame)
+    std::vector<tf2::Vector3> corners_vehicle = {
+        tf2::Vector3(parameter_ZeroPaddingFront,  parameter_ZeroPaddingLeft,  0),
+        tf2::Vector3(parameter_ZeroPaddingFront, -parameter_ZeroPaddingRight, 0),
+        tf2::Vector3(-parameter_ZeroPaddingBehind, -parameter_ZeroPaddingRight, 0),
+        tf2::Vector3(-parameter_ZeroPaddingBehind,  parameter_ZeroPaddingLeft,  0)
+    };
 
-    // // Transform corners to map frame and get bounding box
-    // float min_x = std::numeric_limits<float>::infinity();
-    // float max_x = -min_x;
-    // float min_y = min_x;
-    // float max_y = -min_x;
+    // Transform corners to map frame and get bounding box
+    float min_x = std::numeric_limits<float>::infinity();
+    float max_x = -min_x;
+    float min_y = min_x;
+    float max_y = -min_x;
 
-    // for (const auto& corner : corners_vehicle) {
-    //     float mx = base_pos.x() + cos_yaw * corner.x() - sin_yaw * corner.y();
-    //     float my = base_pos.y() + sin_yaw * corner.x() + cos_yaw * corner.y();
-    //     min_x = std::min(min_x, mx);
-    //     max_x = std::max(max_x, mx);
-    //     min_y = std::min(min_y, my);
-    //     max_y = std::max(max_y, my);
-    // }
+    for (const auto& corner : corners_vehicle) {
+        float mx = base_pos.x() + cos_yaw * corner.x() - sin_yaw * corner.y();
+        float my = base_pos.y() + sin_yaw * corner.x() + cos_yaw * corner.y();
+        min_x = std::min(min_x, mx);
+        max_x = std::max(max_x, mx);
+        min_y = std::min(min_y, my);
+        max_y = std::max(max_y, my);
+    }
 
-    // // Loop through bounding box with 0.2m step
-    // for (float x = min_x; x <= max_x; x += 0.2f) {
-    //     for (float y = min_y; y <= max_y; y += 0.2f) {
-    //         grid_map::Position pos(x, y);
-    //         grid_map::Index idx;
-    //         if (!map.isInside(pos) || !map.getIndex(pos, idx)) continue;
+    // Loop through bounding box with 0.2m step
+    for (float x = min_x; x <= max_x; x += 0.2f) {
+        for (float y = min_y; y <= max_y; y += 0.2f) {
+            grid_map::Position pos(x, y);
+            grid_map::Index idx;
+            if (!map.isInside(pos) || !map.getIndex(pos, idx)) continue;
 
-    //         ggl(idx(0), idx(1)) = ps.point.z;
-    //         gvl(idx(0), idx(1)) = 1.0f;
-    //     }
-    // }
+            ggl(idx(0), idx(1)) = ps.point.z;
+            gvl(idx(0), idx(1)) = 1.0f;
+            map_isGround(idx(0), idx(1)) = 1.0f;
+        }
+    }
 
 
 
@@ -683,7 +660,7 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 
 
-    for(int i=center_idx-1; i>=static_cast<int>(param_BlockSizeInterpolation/2); --i) {
+    for(int i=center_idx-1; i>=static_cast<int>(param_InterpolationPatchSize/2); --i) {
         // rectangle_pos = x,y position of rectangle top left corner
         int rectangle_pos = i;
 
@@ -725,19 +702,22 @@ void GroundSegmentation::interpolate_cell(grid_map::GridMap &map, const size_t x
     static const auto& center_idx = map.getSize()(0)/2-1;
     // "groundpatch" layer contains confidence values
     static grid_map::Matrix& gvl = map["groundpatch"];
-    const auto& gvlblock = gvl.block<param_BlockSizeInterpolation,param_BlockSizeInterpolation>(x-param_BlockSizeInterpolation/2,y-param_BlockSizeInterpolation/2);
+    const auto& gvlblock = gvl.block<param_InterpolationPatchSize,param_InterpolationPatchSize>
+                                    (x-param_InterpolationPatchSize/2,y-param_InterpolationPatchSize/2);
+    const float& gvlSum = gvlblock.sum() + std::numeric_limits<float>::min(); // avoid a possible div by 0
+    float& confidence = gvl(x,y);
     // "ground" contains the ground height values
     static grid_map::Matrix& ggl = map["ground"];
-
+    const auto& gglblock = ggl.block<param_InterpolationPatchSize,param_InterpolationPatchSize>
+                                    (x-param_InterpolationPatchSize/2, y-param_InterpolationPatchSize/2);
     float& height = ggl(x,y);
-    float& confidence = gvl(x,y);
-    const float& gvlSum = gvlblock.sum() + std::numeric_limits<float>::min(); // avoid a possible div by 0
-    const float avg = (gvlblock.cwiseProduct
-                        (ggl.block<param_BlockSizeInterpolation,param_BlockSizeInterpolation>
-                        (x-param_BlockSizeInterpolation/2, y-param_BlockSizeInterpolation/2))
-                      ).sum()/gvlSum;
 
-    height = (1.0f-confidence) * avg + confidence * height;
+    const float avg = gvlblock.cwiseProduct(gglblock).sum()/gvlSum;
+
+    // Old version was 
+    //      "height = (1.0f-confidence) * avg + confidence * height;"
+    // but works better with no memory (brings around less mistakes)
+    height = avg;
 
     // Only update confidence in cells above min distance
     if ((std::pow((float)x-center_idx, 2.0) + std::pow((float)y-center_idx, 2.0)) * std::pow(map.getResolution(), 2.0f) > param_minDistSquared) {
