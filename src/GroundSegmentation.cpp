@@ -694,11 +694,6 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 void GroundSegmentation::interpolate_cell(grid_map::GridMap &map, const size_t x, const size_t y) const
 {
-    // "isGround" says if it has been identified as ground or not
-    static grid_map::Matrix& map_isGround = map["isGround"];
-    if (map_isGround(x,y) > 0.5)
-        return;
-
     static const auto& center_idx = map.getSize()(0)/2-1;
     // "groundpatch" layer contains confidence values
     static grid_map::Matrix& gvl = map["groundpatch"];
@@ -712,6 +707,20 @@ void GroundSegmentation::interpolate_cell(grid_map::GridMap &map, const size_t x
                                     (x-param_InterpolationPatchSize/2, y-param_InterpolationPatchSize/2);
     float& height = ggl(x,y);
 
+    // "isGround" says if it has been identified as ground or not
+    static grid_map::Matrix& map_isGround = map["isGround"];
+    const auto& map_isGround_block = map_isGround.block<param_InterpolationPatchSize,param_InterpolationPatchSize>
+                                        (x-param_InterpolationPatchSize/2,y-param_InterpolationPatchSize/2);
+    float map_isGround_blockSum = map_isGround_block.sum();
+    if (map_isGround(x,y) > 0.5 && (map_isGround_blockSum > 1.9)) {                                     // Make number a parameter
+        float other_isGround_height = (map_isGround_block.cwiseProduct(gglblock).sum() - height) / 
+                                        (map_isGround_blockSum - 1.0);
+        if (std::abs(height-other_isGround_height)>0.5) {                           // Make distance a parameter
+            height = other_isGround_height;     
+        }
+    }
+
+    // Define the value "avg" to be used later
     const float avg = gvlblock.cwiseProduct(gglblock).sum()/gvlSum;
 
     // Old version was 
