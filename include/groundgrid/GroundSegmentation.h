@@ -50,7 +50,8 @@ class GroundSegmentation {
     typedef velodyne_pointcloud::PointXYZIR PCLPoint;
 
     GroundSegmentation() {
-      file_csv.open("/root/catkin_ws/src/bags/output_timeseries.csv", std::ios::app);
+      file_csv.open("/root/catkin_ws/src/bags/output_new_boh.csv", std::ios::app);
+      file_csv << "distance,variance_1,variance_3,variance_5,max_var\n";
     };
     void init(ros::NodeHandle& nodeHandle, const size_t dimension, const float& resolution);
     pcl::PointCloud<PCLPoint>::Ptr filter_cloud(const pcl::PointCloud<PCLPoint>::Ptr cloud, const PCLPoint& cloudOrigin, const geometry_msgs::TransformStamped& mapToBase, grid_map::GridMap &map);
@@ -96,12 +97,12 @@ protected:
 
     // Original: "point_count_cell_variance_threshold" = 10
     // If number of points per cell is lower, the variance is computed as an average of the neighbouring patch
-    const int param_PointPerCellThresholdForVariance = 5;                                           // Controllato, giusto metterlo a 5 per avere
+    const int param_PointPerCellThresholdForVariance = 10;                                           // Controllato, giusto metterlo a 5 per avere
                                                                                                     // delle celle sia di front che dietro
 
     // Original: "max_ring" = 1024
     // If point is out of the interval, it is not considered for the ground segmentation
-    const int param_MinRing = 70;
+    const int param_MinRing = 0;
     const int param_MaxRing = 128;
 
     // Original: "distance_factor" = 0.0001
@@ -131,7 +132,7 @@ protected:
 
     // Original: "ground_patch_detection_minimum_point_count_threshold" = 0.25
     // In percentage, the number of points needed in a patch in order to accept it as "interesting"
-    const double param_PatchPercentageThrForFiltering = 0.4;                                          // Dopo aver cambiato il verticalCoso, rimane
+    const double param_PatchPercentageThrForFiltering = 0.6;                                          // Dopo aver cambiato il verticalCoso, rimane
                                                                                                       // perfetto al 50% (40% per margine)
 
     // Original: "patch_size_change_distance" = 20
@@ -151,7 +152,7 @@ protected:
 
     const int param_PatchSizeSmall = 3;
     const int param_PatchSizeBig = 5;
-    static const int param_BlockSizeInterpolation = 7;
+    static const int param_BlockSizeInterpolation = 3;
 
 
 
