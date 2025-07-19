@@ -510,7 +510,6 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
     // static grid_map::Matrix& distance_map = map["distVisualize"];
     // static grid_map::Matrix& variance_map = map["variance"];
     // static const grid_map::Matrix& gpl = map["points"];
-    // static grid_map::Matrix& map_MaxVar = map["MaxVar"];
 
 
 
@@ -579,31 +578,31 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 
     // // Extract robot pose from transform
-    // tf2::Vector3 base_pos = tf2::Vector3(toBase.transform.translation.x,
+    // tf2::Vector3 base_pos_a = tf2::Vector3(toBase.transform.translation.x,
     //                                      toBase.transform.translation.y,
     //                                      toBase.transform.translation.z);
-    // tf2::Quaternion base_q;
-    // tf2::fromMsg(toBase.transform.rotation, base_q);
-    // double roll, pitch, yaw;
-    // tf2::Matrix3x3(base_q).getRPY(roll, pitch, yaw);
+    // tf2::Quaternion base_q_a;
+    // tf2::fromMsg(toBase.transform.rotation, base_q_a);
+    // double roll_a, pitch_a, yaw_a;
+    // tf2::Matrix3x3(base_q_a).getRPY(roll_a, pitch_a, yaw_a);
     // // Precompute sin/cos for rotation
-    // float cos_yaw = std::cos(yaw);
-    // float sin_yaw = std::sin(yaw);
+    // float cos_yaw_a = std::cos(yaw_a);
+    // float sin_yaw_a = std::sin(yaw_a);
     // // Define step and boundaries
     // float step = 0.15;
-    // float lower_limit = -1.0;
-    // float upper_limit = 60.0;
-    // float x = 0;
+    // float lower_limit = -40.0;
+    // float upper_limit = 40.0;
+    // float x = -39.0;
 
     // while ((lower_limit<=x)&&(x<=upper_limit)) {
 
     //     // Rotate and translate into map frame
     //         // Only x
-    //     float map_x = base_pos.x() + cos_yaw * x;
-    //     float map_y = base_pos.y() + sin_yaw * x;
-    //         // Oblique with y
-    //     // float map_x = base_pos.x() + cos_yaw * x - sin_yaw * x;
-    //     // float map_y = base_pos.y() + sin_yaw * x + cos_yaw * x;
+    //     float map_x = base_pos_a.x() + cos_yaw_a * x;
+    //     float map_y = base_pos_a.y() + sin_yaw_a * x;
+    //         // Oblique with y=x
+    //     // float map_x = base_pos_a.x() + cos_yaw_a * x - sin_yaw_a * x;
+    //     // float map_y = base_pos_a.y() + sin_yaw_a * x + cos_yaw_a * x;
     //         // Increase the step
     //     x += step;
 
@@ -611,23 +610,23 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
     //     grid_map::Position pos(map_x, map_y);
     //     grid_map::Index idx;
     //     if (!map.isInside(pos)) {
-    //         break;
-    //     } else {
-    //         if (!map.getIndex(pos, idx)) {
-    //             continue;
-    //         }
+    //         continue;
+    //     }
+    //     if (!map.getIndex(pos, idx)) {
+    //         continue;
     //     }
 
     //     // Compute distance and variance
-    //     const float distance = std::sqrt(std::pow((map_x-base_pos.x()), 2.0) + std::pow((map_y-base_pos.y()), 2.0));
+    //     float distance = std::sqrt(std::pow((map_x-base_pos_a.x()), 2.0) + std::pow((map_y-base_pos.y()), 2.0));
+    //     if (x<0) {
+    //         distance *= -1;
+    //     }
     //     const float variance_1 = variance_map(idx(0), idx(1));
-
-    //     // Get the maxvar
-    //     float maxVar = map_MaxVar(idx(0), idx(1));
 
     //     // Intialize variances
     //     float variance_3 = -1.0;
     //     float variance_5 = -1.0;
+    //     float variance_7 = -1.0;
     //     // Initialize rows and columns
     //     const int rows = variance_map.rows();
     //     const int cols = variance_map.cols();
@@ -648,11 +647,19 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
     //         variance_5 = pointsBlock_5.array().cwiseProduct(block_5.array()).sum() / pointsBlock_5.sum();
     //     }
 
+    //     // Compute variance_7 only if inside bounds
+    //     if (idx(0) >= 3 && idx(0) + 3 < rows &&
+    //         idx(1) >= 3 && idx(1) + 3 < cols) {
+    //         const auto& block_7 = variance_map.block<7, 7>(idx(0) - 3, idx(1) - 3);
+    //         const auto& pointsBlock_7 = gpl.block<7, 7>(idx(0) - 3, idx(1) - 3);
+    //         variance_7 = pointsBlock_7.array().cwiseProduct(block_7.array()).sum() / pointsBlock_7.sum();
+    //     }
+
     //     visual_map(idx(0), idx(1)) = 1.0;
-    //     // distance_map(idx(0), idx(1)) = distance;
+    //     distance_map(idx(0), idx(1)) = distance;
 
     //     // Write a single line to the CSV
-    //     file_csv << distance << "," << variance_1 << "," << variance_3 << "," << variance_5 << "," << maxVar << "\n";
+    //     file_csv << distance << "," << variance_1 << "," << variance_3 << "," << variance_5 << "," << variance_7 << "\n";
     // }
 
 

@@ -110,8 +110,8 @@ protected:
     // Parameters for the computation of the variance (normal, minimum, maximum)
     const double param_OffsetCoefficientForVariance = 0.0002;                                       // These definitely need to be studied more
     const double param_MinimumVarianceThr = 0.000001;
-    const double param_MaximumVarianceThr = 0.00065;
-    const double param_PowerDistForVariance = -1.65;
+    const double param_MaximumVarianceThr = 0.007;
+    const double param_PowerDistForVariance = -1.25;
 
     // Original: "miminum_point_height_threshold" = 0.3
     // Original: "miminum_point_height_obstacle_threshold" = 0.1
