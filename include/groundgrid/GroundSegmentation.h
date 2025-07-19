@@ -108,10 +108,10 @@ protected:
     // Original: "minimum_distance_factor" = 0.0005
     // Original: "minimum_distance_factor*10" = 0.005
     // Parameters for the computation of the variance (normal, minimum, maximum)
-    const double param_OffsetCoefficientForVariance = 0.0002;                                       // These definitely need to be studied more
+    const double param_OffsetCoefficientForVariance = 0.0001;                                       // These definitely need to be studied more
     const double param_MinimumVarianceThr = 0.000001;
-    const double param_MaximumVarianceThr = 0.007;
-    const double param_PowerDistForVariance = -1.25;
+    const double param_MaximumVarianceThr = 0.0007;
+    const double param_PowerDistForVariance = -1.5;
 
     // Original: "miminum_point_height_threshold" = 0.3
     // Original: "miminum_point_height_obstacle_threshold" = 0.1

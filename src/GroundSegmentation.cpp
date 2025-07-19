@@ -504,26 +504,7 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 
 
-
-
-    // static grid_map::Matrix& visual_map = map["boolVisualize"];
-    // static grid_map::Matrix& distance_map = map["distVisualize"];
-    // static grid_map::Matrix& variance_map = map["variance"];
-    // static const grid_map::Matrix& gpl = map["points"];
-
-
-
-
-
-
-    // if (!file_csv.is_open()) {
-    //     return;
-    // }
-
-
-
-
-
+    /******************* PADDING OF THE AREA NEAR THE CAR *******************/
 
     // Extract robot pose from transform
     tf2::Vector3 base_pos(toBase.transform.translation.x,
@@ -575,7 +556,16 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
 
 
+    // /******************* TAKE DATA ABOUT THE VARIANCE *******************/
 
+    // static grid_map::Matrix& visual_map = map["boolVisualize"];
+    // static grid_map::Matrix& distance_map = map["distVisualize"];
+    // static grid_map::Matrix& variance_map = map["variance"];
+    // static const grid_map::Matrix& gpl = map["points"];
+
+    // if (!file_csv.is_open()) {
+    //     return;
+    // }
 
     // // Extract robot pose from transform
     // tf2::Vector3 base_pos_a = tf2::Vector3(toBase.transform.translation.x,
@@ -598,11 +588,17 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
 
     //     // Rotate and translate into map frame
     //         // Only x
-    //     float map_x = base_pos_a.x() + cos_yaw_a * x;
-    //     float map_y = base_pos_a.y() + sin_yaw_a * x;
+    //     // float map_x = base_pos_a.x() + cos_yaw_a * x;
+    //     // float map_y = base_pos_a.y() + sin_yaw_a * x;
     //         // Oblique with y=x
     //     // float map_x = base_pos_a.x() + cos_yaw_a * x - sin_yaw_a * x;
     //     // float map_y = base_pos_a.y() + sin_yaw_a * x + cos_yaw_a * x;
+    //         // Oblique with angle alpha
+    //     // float alpha = -15;
+    //     // float alpha_rad = alpha*(M_PI/180);
+    //     // float y = x * std::tan(alpha_rad);
+    //     // float map_x = base_pos_a.x() + cos_yaw_a * x - sin_yaw_a * y;
+    //     // float map_y = base_pos_a.y() + sin_yaw_a * x + cos_yaw_a * y;
     //         // Increase the step
     //     x += step;
 
