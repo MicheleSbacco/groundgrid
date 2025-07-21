@@ -81,12 +81,6 @@ protected:
     //    - When squared, becomes 4.0
     const float param_minDistSquared = 4.0f;
 
-    // Parameters to perform the padding around the car. For now not used
-    float parameter_ZeroPaddingLeft = 1.0;
-    float parameter_ZeroPaddingRight = 1.0;
-    float parameter_ZeroPaddingFront = 2.0;
-    float parameter_ZeroPaddingBehind = 2.5;
-
 
 
 
@@ -116,8 +110,9 @@ protected:
     // Original: "miminum_point_height_threshold" = 0.3
     // Original: "miminum_point_height_obstacle_threshold" = 0.1
     // Boh non so serve per cose strane, li lascio come stanno dai che è meglio
-    const double param_PointHeightThrForGround = 0.3;
-    const double param_PointHeightThrForObstacle = 0.1;
+    const double param_GroundThrMultiplier = 0.0007;
+    const double param_GroundThrMax = 0.5;
+    const double param_GroundThrMin = 0.1;
 
     // Original: "outlier_tolerance" = 0.1
     // Needed to estimate outliers (when below the ground level)
@@ -173,6 +168,14 @@ protected:
     // Patch size for the "interpolate_cell"
     static const int param_InterpolationPatchSize = 7;              // Was 3, wanted to increase it a lot to make things more
                                                                     // regular (hopefully not too slower)
+    // Distances, and step to take near the car to perform 
+    // the zero-padding of the floor level
+    const float parameter_ZeroPaddingLeft = 2.0;
+    const float parameter_ZeroPaddingRight = 2.0;
+    const float parameter_ZeroPaddingFront = 2.5;
+    const float parameter_ZeroPaddingBehind = 4.0;
+    const float param_InterpolationPaddingStep = 0.4;               // If set to 0.4 leaves some blank spots here and there, but
+                                                                    // it still works and is also much more efficient
 
     // Confidence assigned to the cells that are NOT considered ground
     const float param_ConfidenceForNotGround = 0.1;                       // Needs to be checked too :)

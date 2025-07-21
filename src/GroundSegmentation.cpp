@@ -234,26 +234,24 @@ pcl::PointCloud<GroundSegmentation::PCLPoint>::Ptr GroundSegmentation::filter_cl
     // Re-add ignored points
     point_index.insert(point_index.end(), ignored.begin(), ignored.end());
 
-
-    // Debugging statistics
-    const double& min_dist_fac = param_MinimumVarianceThr*5;
-    const double& min_point_height_thres = param_PointHeightThrForGround;
-    const double& min_point_height_obs_thres = param_PointHeightThrForObstacle;
-
+    // Cycle through the points to classify them
     for(const std::pair<size_t, grid_map::Index>& entry : point_index)
     {
         const PCLPoint& point = cloud->points[entry.first];
         const grid_map::Index& gi = entry.second;
-        const double& groundheight = ggl(gi(0),gi(1));
-
-        // copy the points intensity because it get's overwritten for evaluation purposes
-        const float& variance = ggv(gi(0),gi(1));
+        const double groundheight = ggl(gi(0),gi(1));
+        const double variance = ggv(gi(0),gi(1));
 
         if(size(0) <= gi(0)+3 || size(1) <= gi(1)+3)
             continue;
 
-        const float dist = std::hypot(point.x-cloudOrigin.x, point.y-cloudOrigin.y);
-        const double tolerance = std::max(std::min((min_dist_fac*dist)/variance * min_point_height_thres, min_point_height_thres), min_point_height_obs_thres);
+        const double tolerance = std::max(
+            std::min(
+                param_GroundThrMultiplier/variance,
+                param_GroundThrMax
+            ),
+            param_GroundThrMin
+        );
 
         if(tolerance+groundheight < point.z){ // non-ground points
             PCLPoint& segmented_point = filtered_cloud->points.emplace_back(point);
@@ -517,33 +515,20 @@ void GroundSegmentation::spiral_ground_interpolation(grid_map::GridMap &map, con
     float cos_yaw = std::cos(yaw);
     float sin_yaw = std::sin(yaw);
 
-    // Define the corners of the rectangular box (in vehicle frame)
-    std::vector<tf2::Vector3> corners_vehicle = {
-        tf2::Vector3(parameter_ZeroPaddingFront,  parameter_ZeroPaddingLeft,  0),
-        tf2::Vector3(parameter_ZeroPaddingFront, -parameter_ZeroPaddingRight, 0),
-        tf2::Vector3(-parameter_ZeroPaddingBehind, -parameter_ZeroPaddingRight, 0),
-        tf2::Vector3(-parameter_ZeroPaddingBehind,  parameter_ZeroPaddingLeft,  0)
-    };
+    // Define padding bounds in vehicle frame (relative to base)
+    float front  = parameter_ZeroPaddingFront;
+    float back   = -parameter_ZeroPaddingBehind;
+    float left   = parameter_ZeroPaddingLeft;
+    float right  = -parameter_ZeroPaddingRight;
 
-    // Transform corners to map frame and get bounding box
-    float min_x = std::numeric_limits<float>::infinity();
-    float max_x = -min_x;
-    float min_y = min_x;
-    float max_y = -min_x;
+    // Iterate in vehicle frame, then transform to world/map frame
+    for (float x_v = back; x_v <= front; x_v += param_InterpolationPaddingStep) {
+        for (float y_v = right; y_v <= left; y_v += param_InterpolationPaddingStep) {
+            // Transform to world/map frame
+            float x_m = base_pos.x() + cos_yaw * x_v - sin_yaw * y_v;
+            float y_m = base_pos.y() + sin_yaw * x_v + cos_yaw * y_v;
 
-    for (const auto& corner : corners_vehicle) {
-        float mx = base_pos.x() + cos_yaw * corner.x() - sin_yaw * corner.y();
-        float my = base_pos.y() + sin_yaw * corner.x() + cos_yaw * corner.y();
-        min_x = std::min(min_x, mx);
-        max_x = std::max(max_x, mx);
-        min_y = std::min(min_y, my);
-        max_y = std::max(max_y, my);
-    }
-
-    // Loop through bounding box with 0.2m step
-    for (float x = min_x; x <= max_x; x += 0.2f) {
-        for (float y = min_y; y <= max_y; y += 0.2f) {
-            grid_map::Position pos(x, y);
+            grid_map::Position pos(x_m, y_m);
             grid_map::Index idx;
             if (!map.isInside(pos) || !map.getIndex(pos, idx)) continue;
 
